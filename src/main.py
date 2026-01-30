@@ -9,6 +9,21 @@ from feature_engineering import build_feature_set, get_feature_columns
 from parse_logs import load_and_parse
 
 
+def format_alert(row, alert_id: int) -> str:
+    summary = (
+        f"{row['eventName']} via {row['eventSource']} "
+        f"by {row['userName']} from {row['sourceIPAddress']} "
+        f"in {row['awsRegion']} at {row['eventTime']}"
+    )
+    lines = [
+        f"ALERT-{alert_id:04d} | Risk: {row['risk_level']} | Score: {row['risk_score']} | Anomaly: {row['anomaly_score']}",
+        f"Event: {summary}",
+        f"Reason: {row['reason']}",
+        f"Suggested Action: {row['suggested_action']}",
+    ]
+    return "\n".join(lines)
+
+
 def run_pipeline(log_path: Path) -> None:
     df = load_and_parse(log_path)
     df = build_feature_set(df)
@@ -19,16 +34,10 @@ def run_pipeline(log_path: Path) -> None:
     df = apply_risk_scoring(df)
 
     alerts = df.sort_values(["risk_score", "anomaly_score"], ascending=False)
-    for _, row in alerts.iterrows():
-        summary = (
-            f"{row['eventName']} via {row['eventSource']} "
-            f"by {row['userName']} from {row['sourceIPAddress']} "
-            f"in {row['awsRegion']} at {row['eventTime']}"
-        )
-        print(f"[{row['risk_level']}] {summary}")
-        print(f"  Reason: {row['reason']}")
-        print(f"  Action: {row['suggested_action']}")
-        print("-" * 60)
+    for idx, row in enumerate(alerts.itertuples(index=False), start=1):
+        row_data = row._asdict()
+        print(format_alert(row_data, idx))
+        print("-" * 80)
 
 
 def parse_args() -> argparse.Namespace:
